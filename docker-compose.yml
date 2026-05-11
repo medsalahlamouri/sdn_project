@@ -1,0 +1,59 @@
+services:
+  ryu:
+    build:
+      context: ./ryu
+    container_name: ryu
+    ports:
+      - "6653:6653"
+      - "8080:8080"
+    command: >
+      ryu-manager
+      --ofp-tcp-listen-port 6653
+      --wsapi-port 8080
+      ryu.app.simple_switch_13
+      ryu.app.ofctl_rest
+    networks:
+      sdn-net:
+        ipv4_address: 172.33.0.10
+    restart: unless-stopped
+
+  ovs1:
+    build:
+      context: ./nodes
+    container_name: ovs1
+    privileged: true
+    environment:
+      - CONTROLLER_IP=172.33.0.10
+      - NODE_ID=1
+      - REMOTE_IP=172.33.0.12
+      - LOCAL_IP=10.0.0.1
+    networks:
+      sdn-net:
+        ipv4_address: 172.33.0.11
+    depends_on:
+      - ryu
+    restart: unless-stopped
+
+  ovs2:
+    build:
+      context: ./nodes
+    container_name: ovs2
+    privileged: true
+    environment:
+      - CONTROLLER_IP=172.33.0.10
+      - NODE_ID=2
+      - REMOTE_IP=172.33.0.11
+      - LOCAL_IP=10.0.0.2
+    networks:
+      sdn-net:
+        ipv4_address: 172.33.0.12
+    depends_on:
+      - ryu
+    restart: unless-stopped
+
+networks:
+  sdn-net:
+    driver: bridge
+    ipam:
+      config:
+        - subnet: 172.33.0.0/24
