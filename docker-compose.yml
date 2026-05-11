@@ -15,6 +15,11 @@ services:
     networks:
       sdn-net:
         ipv4_address: 172.33.0.10
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/stats/switches"]
+      interval: 5s
+      timeout: 2s
+      retries: 5
     restart: unless-stopped
 
   ovs1:

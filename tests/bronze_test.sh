@@ -1,30 +1,73 @@
 #!/bin/bash
-set -e
+set -euo pipefail
 
-echo "=================================="
-echo " BRONZE TEST - OpenFlow / Ryu"
-echo "=================================="
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+PROJECT_ROOT="$(cd "$SCRIPT_DIR/.." && pwd)"
+cd "$PROJECT_ROOT"
 
-sleep 10
+echo ""
+echo "============================================================"
+echo " BRONZE TEST - OpenFlow / Ryu Connectivity"
+echo "============================================================"
 
-echo
-echo "[1] Verification connexion OVS -> Ryu"
+echo ""
+echo "[TEST 0] Ryu REST API Reachability"
+echo "------------------------------------------------------------"
+echo "  Command: curl -s http://localhost:8080/stats/switches"
+echo "  Log:"
+curl -s http://localhost:8080/stats/switches | python3 -m json.tool 2>/dev/null || curl -s http://localhost:8080/stats/switches
 
-docker exec ovs1 ovs-vsctl show | grep -q "is_connected: true" \
-    && echo "[OK] ovs1 connecte a Ryu" \
-    || echo "[KO] ovs1 NON connecte"
+echo ""
+echo "Waiting for Ryu API to be ready..."
+for i in {1..30}; do
+    if curl -s http://localhost:8080/stats/switches >/dev/null 2>&1; then
+        echo "  OK: Ryu API is ready"
+        break
+    fi
 
-docker exec ovs2 ovs-vsctl show | grep -q "is_connected: true" \
-    && echo "[OK] ovs2 connecte a Ryu" \
-    || echo "[KO] ovs2 NON connecte"
+    if [ "$i" -eq 30 ]; then
+        echo "  ERROR: Ryu API did not become ready in time"
+        exit 1
+    fi
 
-echo
-echo "[2] Verification API REST"
+    echo "  Attempt $i/30"
+    sleep 1
+done
 
-curl http://localhost:8080/stats/switches
+echo ""
+echo "[TEST 1] OVS Controller Connections"
+echo "------------------------------------------------------------"
+echo "  Command: docker exec ovs1 ovs-vsctl show"
+echo "  Log:"
+if docker exec ovs1 ovs-vsctl show | grep -q "is_connected: true"; then
+    docker exec ovs1 ovs-vsctl show | head -20
+    echo "  OK: OVS1 is connected to Ryu controller"
+else
+    echo "  ERROR: OVS1 is not connected"
+    exit 1
+fi
 
-echo
-echo "=================================="
-echo " BRONZE VALIDE"
-echo "=================================="
+echo ""
+echo "  Command: docker exec ovs2 ovs-vsctl show"
+echo "  Log:"
+if docker exec ovs2 ovs-vsctl show | grep -q "is_connected: true"; then
+    docker exec ovs2 ovs-vsctl show | head -20
+    echo "  OK: OVS2 is connected to Ryu controller"
+else
+    echo "  ERROR: OVS2 is not connected"
+    exit 1
+fi
+
+echo ""
+echo "[TEST 2] Ryu API Connected Switches"
+echo "------------------------------------------------------------"
+echo "  Command: curl -s http://localhost:8080/stats/switches"
+echo "  Log:"
+curl -s http://localhost:8080/stats/switches | python3 -m json.tool 2>/dev/null || curl -s http://localhost:8080/stats/switches
+
+echo ""
+echo "============================================================"
+echo " BRONZE TEST PASSED"
+echo "============================================================"
+echo ""
 
